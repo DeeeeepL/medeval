@@ -35,7 +35,7 @@ class Item(BaseModel):
 
 class DatasetMetadata(BaseModel):
     duplicate: Optional[bool] = None
-    duplicated: Optional[bool] = None  # 有的叫 duplicated
+    duplicated: Optional[bool] = None  
     allowed_keys: List[str] = []
     dataset_modal: str = "text"
     dataset_id: str
