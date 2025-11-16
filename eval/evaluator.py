@@ -9,35 +9,74 @@ from ..utils.text import normalize
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
+import re
+from ..utils.text import normalize
+from ..data.schema import Item
+
+LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 def _parse_choice_gt_from_dataset(item: Item) -> List[str]:
     """
-    针对你的选择题数据：
-    - 如果 answer 是选项文本，就定位对应字母
-    - 如果 answer 是单个字母，直接返回
-    - 如果未来扩展多选 + [SEP]，可在此做拆分
+    根据 item.answer + item.options 解析出正确选项字母列表（支持单选/多选）。
+    支持格式：
+      1) answer: ["A","C","D"]
+      2) answer: "A,C,D" / "A，C，D" / "A;C;D"
+      3) answer: "选项1文本[SEP]选项3文本"
+      4) answer: "某个选项的完整文本"
     """
     options = item.options
-    ans = str(item.answer).strip()
-    if not options:
+    ans = item.answer
+    if not options or ans is None:
         return []
 
-    # 单字母
-    if len(ans) == 1 and ans.upper() in LETTERS[:len(options)]:
-        return [ans.upper()]
+    # 1) 若是列表，先当作“多个片段”
+    if isinstance(ans, list):
+        parts = [str(x).strip() for x in ans if str(x).strip()]
+    else:
+        s = str(ans).strip()
+        if not s:
+            return []
+        # 2) [SEP] 拆分
+        if "[SEP]" in s:
+            parts = [p.strip() for p in s.split("[SEP]") if p.strip()]
+        # 3) 多个字母形式 A,B,C
+        elif any(sep in s for sep in [",", "，", ";", "；"]):
+            parts = [p.strip() for p in re.split(r"[,，;；]", s) if p.strip()]
+        else:
+            parts = [s]
 
-    # 尝试与选项文本匹配
-    for i, opt in enumerate(options):
-        if normalize(ans) == normalize(opt):
-            return [LETTERS[i]]
+    correct_indices = set()
 
-    # 简单兜底：没有匹配就返回空
-    return []
+    for part in parts:
+        # 如果是单个字母
+        if len(part) == 1 and part.upper() in LETTERS[:len(options)]:
+            correct_indices.add(LETTERS.index(part.upper()))
+            continue
+
+        # 尝试按选项文本匹配
+        matched = False
+        for idx, opt in enumerate(options):
+            if normalize(part) == normalize(opt):
+                correct_indices.add(idx)
+                matched = True
+                break
+        if not matched:
+            # 兜底：包含关系
+            for idx, opt in enumerate(options):
+                if normalize(part) in normalize(opt) or normalize(opt) in normalize(part):
+                    correct_indices.add(idx)
+                    matched = True
+                    break
+        if not matched:
+            print(f"⚠️ 无法在选项中为题目 {item.question_id} 匹配答案片段：{part}")
+
+    return [LETTERS[i] for i in sorted(correct_indices)]
 
 
-def evaluate_single_choice_item(client: LLMClient,
-                                judge: Judge,
-                                item: Item,
-                                test_model: str) -> Dict[str, Any]:
+def evaluate_choice_item(client: LLMClient,
+                         judge: Judge,
+                         item: Item,
+                         test_model: str) -> Dict[str, Any]:
     options = item.options
     gt_letters = _parse_choice_gt_from_dataset(item)
     full_score = item.metadata.score
@@ -49,7 +88,7 @@ def evaluate_single_choice_item(client: LLMClient,
 
     return {
         "question_id": item.question_id,
-        "type": item.metadata.type,
+        "type": item.metadata.type,   # 这里会是 single_choice 或 multi_choice
         "question": item.question,
         "options": options,
         "gt_letters": gt_letters,
@@ -95,7 +134,6 @@ def evaluate_open_item(client: LLMClient,
         "judge_raw": sc.get("judge_raw", None),
     }
 
-
 def run_eval(dataset: EvalDataset,
              client: LLMClient,
              judge: Judge,
@@ -104,17 +142,20 @@ def run_eval(dataset: EvalDataset,
 
     for item in dataset.dataset:
         t = item.metadata.type
-        if t == "single_choice":
-            rec = evaluate_single_choice_item(client, judge, item, test_model)
+        if t in ("single_choice", "multi_choice"):
+            rec = evaluate_choice_item(client, judge, item, test_model)
         elif t == "open_response":
             rec = evaluate_open_item(client, judge, item, test_model)
         else:
+            # 其它类型先跳过，后面再扩展
             continue
         records.append(rec)
 
     total = sum(r.get("score_obtained", 0) for r in records)
     full = sum(r.get("score_full", 0) for r in records)
-    acc_choice = _acc(records, "single_choice")
+    acc_choice = _acc(records, "single_choice") + _acc(records, "multi_choice")
+    # 上面这行如果你想分开统计，可以写两个字段，这里只是示意
+
     full_open = _full_open(records)
 
     return {
@@ -122,7 +163,8 @@ def run_eval(dataset: EvalDataset,
             "num_items": len(records),
             "total_score": total,
             "max_score": full,
-            "accuracy_single_choice": acc_choice,
+            "accuracy_single_choice": _acc(records, "single_choice"),
+            "accuracy_multi_choice": _acc(records, "multi_choice"),
             "full_score_rate_open": full_open,
         },
         "records": records,
