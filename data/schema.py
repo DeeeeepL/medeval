@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional, Literal
 from pydantic import BaseModel
 
-QuestionType = Literal["single_choice", "multi_choice", "open_response"]
+QuestionType = Literal["single_choice", "multiple_choice", "open_response"]
 
 class ScoringPoint(BaseModel):
     criterion: str

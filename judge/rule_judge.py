@@ -25,9 +25,9 @@ class RuleJudge(Judge):
                             question: str,
                             positive_points: List[ScoringPoint],
                             negative_points: List[ScoringPoint],
-                            student_answer: str,
+                            answer: str,
                             total_score: int) -> Dict[str, Any]:
-        ans = (student_answer or "").lower()
+        ans = (answer or "").lower()
         scoring_points_flags = []
 
         score = 0

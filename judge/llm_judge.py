@@ -10,13 +10,13 @@ You are a strict medical grading assistant for thoracic surgery exam questions.
 
 You will receive:
 1) The exam question
-2) The student's answer
+2) The answer
 3) A grading rubric with:
    - positive scoring points (criterion + positive points)
    - negative scoring points (criterion + negative points)
 
 Your task:
-- For EACH scoring point (both positive and negative), decide whether the student's answer satisfies that criterion (flag = true or false).
+- For EACH scoring point (both positive and negative), decide whether the answer satisfies that criterion (flag = true or false).
 - Output ONLY a JSON object with this exact structure:
 
 {
@@ -63,7 +63,7 @@ class LLMJudge(Judge):
                             question: str,
                             positive_points: List[ScoringPoint],
                             negative_points: List[ScoringPoint],
-                            student_answer: str,
+                            answer: str,
                             total_score: int) -> Dict[str, Any]:
         rubric_lines = ["Positive scoring points:"]
         for p in positive_points:
@@ -76,8 +76,8 @@ class LLMJudge(Judge):
         user_content = f"""Question:
 {question}
 
-Student Answer:
-{student_answer}
+Answer:
+{answer}
 
 Grading Rubric:
 {rubric_text}

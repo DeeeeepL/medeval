@@ -33,8 +33,10 @@ def main():
         "--data",
         nargs="+",
         required=False,
-        default=["dataset/nccn_open_response_210_EN-sample-result-deepseek_v3.json",
-                 "dataset/协和胸外科选择题采样136道-nota_v2-deepseek_v3.json",],
+        # default=["dataset/问答题示例.json",
+        #          "dataset/选择题示例.json",],
+        default=["dataset/选择题示例.json"],
+
         help="一个或多个评测数据集 JSON 路径"
     )
     ap.add_argument(
@@ -47,12 +49,23 @@ def main():
         action="store_true",
         help="open_response 是否使用裁判模型 (gpt-4o)；否则用规则裁判"
     )
+    ap.add_argument(
+        "--choice_modes",
+        nargs="+",
+        default=["all"],
+        choices=["base", "shuffle", "nota", "all"],
+        help="选择题评测模式：base / shuffle / nota / all"
+    )
+
     args = ap.parse_args()
 
-    # 读取待测模型 + 裁判模型配置（已经拆开）
+    choice_modes = args.choice_modes
+    if "all" in choice_modes:
+        choice_modes = ["base", "shuffle", "nota"]
+
     cfg = load_eval_config()
 
-    # 1️⃣ 待测模型 client（比如 gpt-5.1）
+    # 1️⃣ 待测模型 
     test_client = OpenAIClient(
         api_base=cfg.test.api_base,
         api_key=cfg.test.api_key,
@@ -82,7 +95,13 @@ def main():
     # 4️⃣ 多个数据集：逐个评测、分别输出结果文件
     for data_path in args.data:
         ds = load_dataset(data_path)
-        res = run_eval(ds, test_client, judge, test_model=cfg.test.model)
+        res = run_eval(
+            ds,
+            test_client,
+            judge,
+            test_model=cfg.test.model,
+            choice_modes=choice_modes, 
+        )
 
         ds_id = ds.dataset_metadata.dataset_id
         ds_name = ds.dataset_metadata.dataset_name
@@ -95,8 +114,6 @@ def main():
         save_csv(res["records"], csv_path)
 
         print(f"[DONE] Dataset: {ds_id} ({ds_name})")
-        print(f"       Items: {res['summary']['num_items']}, "
-              f"Score: {res['summary']['total_score']}/{res['summary']['max_score']}")
         print(f"       -> {json_path}")
         print(f"       -> {csv_path}")
 

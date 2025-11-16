@@ -15,6 +15,6 @@ class Judge(ABC):
                             question: str,
                             positive_points: List[ScoringPoint],
                             negative_points: List[ScoringPoint],
-                            student_answer: str,
+                            answer: str,
                             total_score: int) -> Dict[str, Any]:
         ...
