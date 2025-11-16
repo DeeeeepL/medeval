@@ -1,5 +1,5 @@
 from typing import Dict, Any, List
-from ..data.schema import Item
+from data.schema import Item
 
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 

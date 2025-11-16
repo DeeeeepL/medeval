@@ -1,6 +1,6 @@
 from typing import Dict, Any, List
 from .base import Judge
-from ..data.schema import ScoringPoint
+from data.schema import ScoringPoint
 
 class RuleJudge(Judge):
     """

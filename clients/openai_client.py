@@ -1,4 +1,5 @@
 import requests
+import os
 from typing import List, Dict, Optional
 from .base import LLMClient
 
@@ -12,6 +13,7 @@ class OpenAIClient(LLMClient):
         self.default_model = default_model
         self.temperature = temperature
         self.timeout = timeout
+
 
     def chat(self, messages: List[Dict[str, str]],
              model: Optional[str] = None,

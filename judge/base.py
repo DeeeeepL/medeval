@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List
-from ..data.schema import ScoringPoint
+from data.schema import ScoringPoint
 
 class Judge(ABC):
     @abstractmethod

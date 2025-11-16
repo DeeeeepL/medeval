@@ -1,8 +1,9 @@
+# medeval/judge/llm_judge.py
 import json
 from typing import Dict, Any, List
 from .base import Judge
-from ..data.schema import ScoringPoint
-from ..clients.base import LLMClient
+from data.schema import ScoringPoint
+from clients.base import LLMClient
 
 JUDGE_SYSTEM_PROMPT = """
 You are a strict medical grading assistant for thoracic surgery exam questions.
@@ -39,13 +40,12 @@ Rules:
 class LLMJudge(Judge):
     """
     GPT-4o 裁判：
-    - 返回每个 scoring point 的 flag
-    - 得分完全由本地 Python 按 points 计算（正负皆可）
+    - 只持有“裁判模型 client”（可以是 gpt-4o，也可以是别的）
+    - client 内部已经配置了默认模型，无需在这里传 model 名
     """
 
-    def __init__(self, client: LLMClient, judge_model: str = "gpt-4o"):
-        self.client = client
-        self.judge_model = judge_model
+    def __init__(self, judge_client: LLMClient):
+        self.judge_client = judge_client
 
     def score_single_choice(self,
                             gt_letters: List[str],
@@ -90,11 +90,11 @@ Remember: ONLY output JSON with positive[] and negative[].
             {"role": "user", "content": user_content},
         ]
 
-        raw = self.client.chat(messages, model=self.judge_model)
+        raw = self.judge_client.chat(messages)  # 不再传 model，使用裁判 client 默认模型
         flags = self._parse_flags(raw, positive_points, negative_points)
         scoring_points_flags = flags["scoring_points_flags"]
 
-        # 本地计算得分
+        # 本地算分
         score = 0
         for sp in scoring_points_flags:
             if sp["flag"]:
@@ -112,14 +112,10 @@ Remember: ONLY output JSON with positive[] and negative[].
                      raw: str,
                      positive_points: List[ScoringPoint],
                      negative_points: List[ScoringPoint]) -> Dict[str, Any]:
-        """
-        解析 GPT-4o 输出的 JSON，并与 rubric 对齐：
-        - 若缺失某个 criterion，就默认 flag=False
-        """
         try:
             j = self._safe_json_loads(raw)
         except Exception:
-            # 解析失败，全部 false
+            # 全部 false 兜底
             scoring_points_flags = []
             for p in positive_points:
                 scoring_points_flags.append({
@@ -158,9 +154,7 @@ Remember: ONLY output JSON with positive[] and negative[].
 
     @staticmethod
     def _safe_json_loads(text: str) -> Any:
-        # 提取第一个看起来像 JSON 的对象
         text = text.strip()
-        # 简单处理：找到第一个 '{' 和最后一个 '}' 之间
         start = text.find("{")
         end = text.rfind("}")
         if start != -1 and end != -1 and end > start:

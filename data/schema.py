@@ -31,7 +31,7 @@ class Item(BaseModel):
     metadata: Metadata
     multimodal_data: List[Dict[str, Any]] = []
     answer_pred: Optional[str] = None
-    model: Optional[str] = None
+    # model: Optional[str] = None
 
 class DatasetMetadata(BaseModel):
     duplicate: Optional[bool] = None
